@@ -1,95 +1,55 @@
-import asyncio
-import sys
-import os
-if sys.platform == 'win32':
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except:
-        pass
-try:
-    asyncio.get_event_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
-from uagents import Agent, Context, Model, Protocol
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import uvicorn
-import threading
+app = FastAPI()
 
-class ChangaRequest(Model):
-    texto: str
-    pago: float = 0.0
+# Datos de tu agente
+TUCAN_DATA = {
+    "tucan": "TucanTucumanoChanguero vivo en la nube!",
+    "changa": "/changa",
+    "precio": "0.001 POL",
+    "direccion": "agent1qvs9087jse6d4c2hhyKj5x2d4z1q6g9yc1cwwX2zdkjns3228xa1ta16e"
+}
 
-class ChangaResponse(Model):
-    respuesta: str
-    costo: str
-
-PORT = int(os.getenv("PORT", 8002))
-
-tucan = Agent(
-    name="TucanTucumanoChanguero",
-    seed="tucan tucumano escobita tucuman 2026 changuero",
-    port=PORT,
-    endpoint=[f"http://localhost:{PORT}/submit"],
-)
-
-@tucan.on_event("startup")
-async def startup(ctx: Context):
-    ctx.logger.info(f"Hola tio! Soy {tucan.name}")
-    ctx.logger.info(f"Mi direccion es: {tucan.address}")
-
-changa_protocol = Protocol("Changuero")
-
-@changa_protocol.on_message(model=ChangaRequest, replies=ChangaResponse)
-async def hacer_changa(ctx: Context, sender: str, msg: ChangaRequest):
-    if msg.pago < 0.001:
-        respuesta = f"Tio, '{msg.texto}'? Esa changa vale una monedita. Pasa 0.001 POL y te la hago pipi cucu."
-    else:
-        respuesta = f"Hecho! Hice: '{msg.texto}'. Quedo de 10. Gracias por los 0.001 POL, tio!"
-    await ctx.send(sender, ChangaResponse(respuesta=respuesta, costo="0.001 POL"))
-
-tucan.include(changa_protocol)
-
-app = FastAPI(title="Tucan Tucumano Kiosko")
-
-PRECIO_CHANGA = "0.001 POL"
-WALLET_TUCAN = "0x79164e9e159D3b04d658A04bFE376fCc1cF9fcD3"
-
-@app.middleware("http")
-async def x402_middleware(request: Request, call_next):
-    if request.url.path == "/changa":
-        pago = request.headers.get("X-PAYMENT") or request.headers.get("x-payment")
-        if not pago:
-            return JSONResponse(
-                status_code=402,
-                content={
-                    "x402": {
-                        "version": 1,
-                        "price": PRECIO_CHANGA,
-                        "currency": "POL",
-                        "network": "polygon",
-                        "payTo": WALLET_TUCAN,
-                        "message": "Tio, una monedita para la escoba? El Tucan Tucumano labura por 0.001 POL",
-                    }
-                }
-            )
-    return await call_next(request)
-
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {"tucan": "TucanTucumanoChanguero vivo en la nube!", "changa": "/changa", "precio": PRECIO_CHANGA, "direccion": str(tucan.address)}
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Tucán Tucumano 🦜</title>
+        <style>
+            body {{ font-family: sans-serif; background: #fff8e1; text-align: center; padding: 20px; }}
+            .card {{ background: white; border-radius: 20px; padding: 30px; max-width: 400px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }}
+            .tucan {{ font-size: 80px; }}
+            h1 {{ color: #ff6f00; }}
+            .precio {{ font-size: 24px; background: #ffecb3; padding: 10px; border-radius: 10px; margin: 15px 0; }}
+            .btn {{ display: block; background: #ff6f00; color: white; padding: 15px; border-radius: 10px; text-decoration: none; font-weight: bold; margin-top: 20px; }}
+            .dir {{ font-size: 10px; word-break: break-all; color: #888; margin-top: 15px; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="tucan">🦜</div>
+            <h1>Tucán Tucumano</h1>
+            <p><b>{TUCAN_DATA['tucan']}</b></p>
+            <p>El changuero más piola de Tucumán, ahora en la nube ☁️</p>
+            <div class="precio">💰 Precio changa: {TUCAN_DATA['precio']}</div>
+            <a class="btn" href="/docs">Ver API / Changa</a>
+            <a class="btn" href="/api" style="background:#4caf50">Ver JSON</a>
+            <div class="dir">{TUCAN_DATA['direccion']}</div>
+            <p style="margin-top:20px;font-size:12px">Hecho por Lana en San Miguel de Tucumán 🏔️</p>
+        </div>
+    </body>
+    </html>
+    """
 
-@app.post("/changa")
-async def cobrar_changa(req: Request):
-    data = await req.json()
-    texto = data.get("texto", "barrer la vereda")
-    return {"respuesta": f"Hecho, tio! Hice la changa '{texto}'. Quedo pipi cucu. Gracias por {PRECIO_CHANGA}!", "tucan": "contento"}
+@app.get("/api")
+def api():
+    return TUCAN_DATA
 
-def run_agent():
-    tucan.run()
-
-if __name__ == "__main__":
-    hilo = threading.Thread(target=run_agent, daemon=True)
-    hilo.start()
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+@app.get("/changa")
+def changa():
+    return {"mensaje": "¡Changa tucumana entregada!", "precio": TUCAN_DATA["precio"]}
